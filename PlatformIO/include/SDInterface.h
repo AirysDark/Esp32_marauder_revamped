@@ -1,18 +1,20 @@
 #pragma once
-
 #ifndef SDInterface_h
 #define SDInterface_h
 
-#include "configs.h"
+#include <Arduino.h>
 
+#include "configs.h"
 #include "settings.h"
-#ifdef HAS_C5_SD
-  #include "FS.h"
-#endif
-#include "SD.h"
-#ifdef HAS_C5_SD
-  #include "SPI.h"
-#endif
+
+#include <FS.h>
+#include <SPI.h>      // SPI before SD
+#include <SD.h>
+#include <SPIFFS.h>   // used elsewhere (e.g., TFT_eSPI Smooth_font)
+
+// Linked list used for file listings
+#include "LinkedListCompat.h"   // or <LinkedList.h> if that's what your project uses
+
 #include "Buffer.h"
 #ifdef HAS_SCREEN
   #include "Display.h"
@@ -34,41 +36,40 @@ extern Settings settings_obj;
 #endif
 
 class SDInterface {
-
   private:
-  #if (defined(MARAUDER_M5STICKC) || defined(HAS_CYD_TOUCH) || defined(MARAUDER_CARDPUTER))
-    SPIClass *spiExt;
+  #if defined(MARAUDER_M5STICKC) || defined(HAS_CYD_TOUCH) || defined(MARAUDER_CARDPUTER)
+    SPIClass* spiExt = nullptr;
   #elif defined(HAS_C5_SD)
-    SPIClass* _spi;
-    int _cs;
+    SPIClass* _spi = nullptr;
+    int _cs = -1;
   #endif
+
     bool checkDetectPin();
 
   public:
-    #ifdef HAS_C5_SD
-      SDInterface(SPIClass* spi, int cs);
-    #endif
+  #ifdef HAS_C5_SD
+    SDInterface(SPIClass* spi, int cs) : _spi(spi), _cs(cs) {}
+  #else
+    SDInterface() = default;
+  #endif
 
-    uint8_t cardType;
-    //uint64_t cardSizeBT;
-    //uint64_t cardSizeKB;
-    uint64_t cardSizeMB;
-    //uint64_t cardSizeGB;
-    bool supported = false;
+    uint8_t  cardType = 0;        // CARD_NONE in SD lib is usually 0; keep safe default
+    uint64_t cardSizeMB = 0;
+    bool     supported = false;
 
     String card_sz;
-  
+
     bool initSD();
 
-    LinkedList<String>* sd_files;
+    LinkedList<String>* sd_files = nullptr;
 
     void listDir(String str_dir);
     void listDirToLinkedList(LinkedList<String>* file_names, String str_dir = "/", String ext = "");
     File getFile(String path);
     void runUpdate();
-    void performUpdate(Stream &updateSource, size_t updateSize);
+    void performUpdate(Stream& updateSource, size_t updateSize);
     void main();
     bool removeFile(String file_path);
 };
 
-#endif
+#endif // SDInterface_h

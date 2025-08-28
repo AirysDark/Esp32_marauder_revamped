@@ -5,6 +5,7 @@
 
 #include "configs.h"
 
+
 #ifdef HAS_SCREEN
 
 #include <FS.h>
@@ -14,7 +15,7 @@
 #include <SPI.h>
 #include <lvgl.h>
 #include <Ticker.h>
-#include "SPIFFS.h"
+#include <SPIFFS.h>
 #include "Assets.h"
 
 #include <TFT_eSPI.h>
