@@ -1,122 +1,53 @@
 #pragma once
 
-#ifndef GpsInterface_h
-#define GpsInterface_h
-
+#include <Arduino.h>
 #include <MicroNMEA.h>
-#include <SoftwareSerial.h>
-#include <LinkedList.h>
 
-#include "configs.h"
-
-//#define GPS_TEXT_MAXLINES 5 //default:5 lines in the buffer maximum
-//#define GPS_TEXT_MAXCYCLES 1 //default:1
-
-//#define GPS_NMEA_SCRNLINES TEXT_HEIGHT //default: defined TEXT_HEIGHT from configs.h
-//#define GPS_NMEA_SCRNWRAP true //default:true, except on MARAUDER_MINI where false
-//#define GPS_NMEA_MAXQUEUE 30 //default:30 messages max in queue
-
-#ifdef MARAUDER_MINI
-  #ifndef GPS_NMEA_SCRNWRAP
-    #define GPS_NMEA_SCRNWRAP false
-  #endif
-#else
-  #ifndef GPS_NMEA_SCRNWRAP
-    #define GPS_NMEA_SCRNWRAP true
-  #endif
+// Pins and serial selection come from configs.h, but provide sane defaults if not defined
+#ifndef GPS_SERIAL
+#  define GPS_SERIAL Serial2
 #endif
-
-struct nmea_sentence_t {
-  bool unparsed;
-  String type;
-  String sentence;
-};
-
-void gps_nmea_notimp(MicroNMEA& nmea);
+#ifndef GPS_RX_PIN
+#  define GPS_RX_PIN 16
+#endif
+#ifndef GPS_TX_PIN
+#  define GPS_TX_PIN 17
+#endif
+#ifndef GPS_BAUD
+#  define GPS_BAUD 9600
+#endif
 
 class GpsInterface {
-  public:
-    void begin();
-    void main();
+public:
+  explicit GpsInterface(HardwareSerial& serial = GPS_SERIAL);
 
-    int getNumSats();
-    String getNumSatsString();
-    bool getFixStatus();
-    String getFixStatusAsString();
-    bool getGpsModuleStatus();
-    String getLat();
-    String getLon();
-    float getAlt();
-    float getAccuracy();
-    String getDatetime();
-    String getText();
-    int getTextQueueSize();
-    String getTextQueue(bool flush=1);
-    String getNmea();
-    String getNmeaNotimp();
-    String getNmeaNotparsed();
+  // Initialize UART for the GPS
+  void begin(uint32_t baud = GPS_BAUD);
 
-    void setType(String t);
+  // Pump bytes from UART into MicroNMEA parser. Call this often.
+  void handleIncoming();
 
-    void enqueue(MicroNMEA& nmea);
-    LinkedList<nmea_sentence_t>* get_queue();
-    void flush_queue();
-    void flush_text();
-    void new_queue();
-    void enable_queue();
-    void disable_queue();
-    bool queue_enabled();
+  // Accessors
+  bool hasFix() const { return m_hasFix; }
+  int32_t latitudeE7()  const { return m_latE7; }  // degrees * 1e7
+  int32_t longitudeE7() const { return m_lonE7; }  // degrees * 1e7
+  int16_t altitudeCm()  const { return m_altCm; }  // centimeters (if available, else 0)
+  uint8_t sats()        const { return m_sats; }
+  uint16_t hdop()       const { return m_hdop; }   // HDOP * 10 (e.g., 9 -> 0.9)
 
-    void sendSentence(const char* sentence);
-    void sendSentence(Stream &s, const char* sentence);
+private:
+  HardwareSerial& m_serial;
 
-    String generateGXgga();
-    String generateGXrmc();
+  // MicroNMEA needs an internal sentence buffer
+  static const size_t NMEA_BUF_LEN = 120;
+  char m_nmeaBuffer[NMEA_BUF_LEN];
+  MicroNMEA m_nmea;
 
-  private:
-    enum type_t {
-      GPSTYPE_NATIVE = 0,
-      GPSTYPE_ALL = 1,
-      GPSTYPE_GPS = 2,
-      GPSTYPE_GLONASS = 3,
-      GPSTYPE_GALILEO = 4,
-      GPSTYPE_NAVIC = 5,
-      GPSTYPE_QZSS = 6,
-      GPSTYPE_BEIDOU = 7,
-      GPSTYPE_BEIDOU_BD = 8
-    };
-
-    // GPS Info
-    String gps_text = "";
-    String nmea_sentence = "";
-    String notimp_nmea_sentence = "";
-    String notparsed_nmea_sentence = "";
-    String lat = "";
-    String lon = "";
-    float altf = 0.0;
-    float accuracy = 0.0;
-    String datetime = "";
-    
-    bool gps_enabled = false;
-    bool good_fix = false;
-    char nav_system='\0';
-    uint8_t num_sats = 0;
-
-    type_t type_flag = GPSTYPE_NATIVE;
-
-    bool queue_enabled_flag=0;
-    LinkedList<nmea_sentence_t> *queue=NULL;
-
-    unsigned int text_cycles=0;
-    LinkedList<String> *text_in=NULL;
-    LinkedList<String> *text=NULL;
-
-    String generateType();
-    void flush_queue_text();
-    void flush_queue_textin();
-    void flush_queue_nmea();
-    String dt_string_from_gps();
-    void setGPSInfo();
+  // Cached values
+  bool    m_hasFix   = false;
+  int32_t m_latE7    = 0;
+  int32_t m_lonE7    = 0;
+  int16_t m_altCm    = 0;    // altitude in cm
+  uint8_t m_sats     = 0;
+  uint16_t m_hdop    = 0;    // hdop*10
 };
-
-#endif
